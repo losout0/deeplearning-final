@@ -169,7 +169,7 @@ class GPT2ModelGQA(torch.nn.Module):
             for _ in range(config["num_layers"])
         ])
 
-        self.final_norm = RMSNorm(
+        self.final_norm = LayerNorm(
             embedding_dim=config["embedding_dim"],
             epsilon=1e-5
         )
