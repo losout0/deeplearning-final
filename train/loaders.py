@@ -21,8 +21,7 @@ class Dataset_GPT(Dataset):
         return len(self.input_ids)
     
 
-def create_dataset(text, stride, max_length, shuffle, drop_last, num_workers, batch_size):
-    tokenizer = tiktoken.get_encoding("o200k_base")
+def create_dataset(text, stride, max_length, shuffle, drop_last, tokenizer, num_workers, batch_size):
 
     dataset = Dataset_GPT(
         text=text,
@@ -40,13 +39,14 @@ def create_dataset(text, stride, max_length, shuffle, drop_last, num_workers, ba
     )
 
 
-def get_loaders(train_data, test_data, val_data, max_length = 256, batch_sz = 10):
+def get_loaders(train_data, test_data, val_data, tokenizer, max_length = 256, batch_sz = 10):
     train_loader = create_dataset(
         text=train_data,
         max_length=max_length,
         stride=1,
         batch_size=batch_sz,
         num_workers=4,
+        tokenizer=tokenizer,
         drop_last=True,
         shuffle=True
     )
@@ -57,6 +57,7 @@ def get_loaders(train_data, test_data, val_data, max_length = 256, batch_sz = 10
         stride=1,
         batch_size=batch_sz,
         num_workers=4,
+        tokenizer=tokenizer,
         drop_last=True,
         shuffle=True
     )
@@ -67,6 +68,7 @@ def get_loaders(train_data, test_data, val_data, max_length = 256, batch_sz = 10
         stride=1,
         batch_size=batch_sz,
         num_workers=4,
+        tokenizer=tokenizer,
         drop_last=True,
         shuffle=True
     )
