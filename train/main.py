@@ -101,7 +101,6 @@ def compute_perplexity(model, data_loader, device):
 compute_perplexity(model, test_loader, device)
 
 
-
 try:
     torch.save(model.state_dict(), config["file_save"])
     print("Modelo salvo")

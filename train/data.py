@@ -5,28 +5,7 @@ import urllib.request
 
 GUTENBERG_URLS = [
     "https://www.gutenberg.org/cache/epub/17005/pg17005.txt",
-    "https://www.gutenberg.org/cache/epub/38496/pg38496.txt",
-    "https://www.gutenberg.org/cache/epub/29040/pg29040.txt",
-    "https://www.gutenberg.org/cache/epub/31552/pg31552.txt",
-    "https://www.gutenberg.org/cache/epub/62383/pg62383.txt",
-    "https://www.gutenberg.org/cache/epub/71031/pg71031.txt",
-    "https://www.gutenberg.org/cache/epub/26777/pg26777.txt",
-    "https://www.gutenberg.org/cache/epub/3333/pg3333.txt",
-    "https://www.gutenberg.org/cache/epub/31509/pg31509.txt",
-    "https://www.gutenberg.org/cache/epub/34387/pg34387.txt",
-    "https://www.gutenberg.org/cache/epub/40409/pg40409.txt",
-    "https://www.gutenberg.org/cache/epub/70819/pg70819.txt",
-    "https://www.gutenberg.org/cache/epub/25840/pg25840.txt",
-    "https://www.gutenberg.org/cache/epub/67767/pg67767.txt",
-    "https://www.gutenberg.org/cache/epub/29484/pg29484.txt",
-    "https://www.gutenberg.org/cache/epub/28691/pg28691.txt",
-    "https://www.gutenberg.org/cache/epub/58689/pg58689.txt",
-    "https://www.gutenberg.org/cache/epub/70764/pg70764.txt",
-    "https://www.gutenberg.org/cache/epub/18220/pg18220.txt",
-    "https://www.gutenberg.org/cache/epub/15047/pg15047.txt",
-    "https://www.gutenberg.org/cache/epub/29435/pg29435.txt",
-    "https://www.gutenberg.org/cache/epub/62624/pg62624.txt",
-    "https://www.gutenberg.org/cache/epub/68932/pg68932.txt"
+
 ]
 
 
@@ -70,7 +49,7 @@ def download_corpus(urls, output_dir):
 
 
 def get_data():
-    DATA_DIR = Path("./data/ptbr"); DATA_DIR.mkdir(exist_ok=True)
+    DATA_DIR = Path("./data/ptbr"); DATA_DIR.mkdir(parents=True, exist_ok=True)
     data = download_corpus(urls=GUTENBERG_URLS, output_dir=DATA_DIR)
     data = data[0: len(data) // 2]
     
