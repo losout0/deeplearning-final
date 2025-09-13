@@ -140,3 +140,57 @@ class TransformerBlockGQA(torch.nn.Module):
         add2 = forward + residual_connetion_forward
 
         return add2
+
+
+class GPT2ModelGQA(torch.nn.Module):
+    def __init__(self, config, device):
+        super().__init__()
+        self.device = device
+
+        self.embeddings = torch.nn.Embedding(
+            num_embeddings=config["vocab_size"],
+            embedding_dim=config["embedding_dim"]
+        )
+
+        self.pos_embeddings = torch.nn.Embedding(
+            num_embeddings=config["context_length"],
+            embedding_dim=config["embedding_dim"]
+        )
+
+        self.transformer_blocks = torch.nn.Sequential(*[
+            TransformerBlockGQA(
+                context_length=config["context_length"],
+                dim_in=config["embedding_dim"],
+                dim_out=config["embedding_dim"],
+                num_heads=config["num_heads"],
+                num_kv_groups=config["num_kv_groups"],
+                bias=config["bias"]
+            )
+            for _ in range(config["num_layers"])
+        ])
+
+        self.final_norm = RMSNorm(
+            embedding_dim=config["embedding_dim"],
+            epsilon=1e-5
+        )
+
+        self.out_head = torch.nn.Linear(
+            config["embedding_dim"],
+            config["vocab_size"],
+            bias=config["bias"]
+        )
+
+
+    def forward(self, x):
+        batch_size, context_length = x.shape
+        tok_emb = self.embeddings(x)
+        pos_emb = self.pos_embeddings(
+            torch.arange(context_length, device=self.device)
+        )
+        input_emb = tok_emb + pos_emb
+
+        result_transformer_blocks = self.transformer_blocks(input_emb)
+        norm = self.final_norm(result_transformer_blocks)
+        logits = self.out_head(norm)
+
+        return logits
