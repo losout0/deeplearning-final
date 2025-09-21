@@ -47,7 +47,7 @@ def create_dataset(text, stride, max_length, shuffle, drop_last, tokenizer, num_
     )
 
 def load_file(file_path):
-    with open(file_path, 'r') as file:
+    with open(file_path, 'r',encoding='utf-8') as file:
         content = file.read()
     return content
 
@@ -62,7 +62,7 @@ def get_loaders(data_path, tokenizer, max_length = 256, batch_sz = 10):
         max_length=max_length,
         stride=1,
         batch_size=batch_sz,
-        num_workers=os.cpu_count()//2 or 2,
+        num_workers=0,
         tokenizer=tokenizer,
         drop_last=True,
         shuffle=True,
@@ -74,7 +74,7 @@ def get_loaders(data_path, tokenizer, max_length = 256, batch_sz = 10):
         max_length=max_length,
         stride=1,
         batch_size=batch_sz,
-        num_workers=os.cpu_count()//2 or 2,
+        num_workers=0,
         tokenizer=tokenizer,
         drop_last=True,
         shuffle=True,
@@ -86,7 +86,7 @@ def get_loaders(data_path, tokenizer, max_length = 256, batch_sz = 10):
         max_length=max_length,
         stride=1,
         batch_size=batch_sz,
-        num_workers=os.cpu_count()//2 or 2,
+        num_workers=0,
         tokenizer=tokenizer,
         drop_last=True,
         shuffle=True,
