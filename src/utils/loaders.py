@@ -12,15 +12,20 @@ class Dataset_GPT(Dataset):
         allowed_special = {'<|endoftext|>'}
         tokens = tokenizer.encode(text, allowed_special=allowed_special)
 
-        for i in tqdm(range(0, len(tokens) - max_length, stride), desc=f"Criando amostras de {set}"):
-            self.input_ids.append(torch.tensor(tokens[i: i + max_length]))
-            self.target_ids.append(torch.tensor(tokens[i+1: i+max_length + 1]))
+        self.tokens = torch.tensor(tokens, dtype=torch.long)
+        self.max_length = max_length
+        self.stride = stride
 
     def __getitem__(self, idx):
-        return self.input_ids[idx], self.target_ids[idx]
+        start_idx = idx * self.stride
+        
+        input_ids = self.tokens[start_idx : start_idx + self.max_length]
+        target_ids = self.tokens[start_idx + 1 : start_idx + self.max_length + 1]
+        
+        return input_ids, target_ids
 
     def __len__(self):
-        return len(self.input_ids)
+        return (len(self.tokens) - self.max_length - 1) // self.stride
     
 
 def create_dataset(text, stride, max_length, shuffle, drop_last, tokenizer, num_workers, batch_size, set):
@@ -57,7 +62,7 @@ def get_loaders(data_path, tokenizer, max_length = 256, batch_sz = 10):
         max_length=max_length,
         stride=1,
         batch_size=batch_sz,
-        num_workers=4,
+        num_workers=os.cpu_count()//2 or 2,
         tokenizer=tokenizer,
         drop_last=True,
         shuffle=True,
@@ -69,7 +74,7 @@ def get_loaders(data_path, tokenizer, max_length = 256, batch_sz = 10):
         max_length=max_length,
         stride=1,
         batch_size=batch_sz,
-        num_workers=4,
+        num_workers=os.cpu_count()//2 or 2,
         tokenizer=tokenizer,
         drop_last=True,
         shuffle=True,
@@ -81,7 +86,7 @@ def get_loaders(data_path, tokenizer, max_length = 256, batch_sz = 10):
         max_length=max_length,
         stride=1,
         batch_size=batch_sz,
-        num_workers=4,
+        num_workers=os.cpu_count()//2 or 2,
         tokenizer=tokenizer,
         drop_last=True,
         shuffle=True,
