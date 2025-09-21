@@ -1,16 +1,18 @@
+import os
 import torch, tiktoken
 from torch.utils.data import Dataset, DataLoader
+from tqdm import tqdm
 
 
 class Dataset_GPT(Dataset):
-    def __init__(self, text, tokenizer, stride, max_length):
+    def __init__(self, text, tokenizer, stride, max_length, set):
         self.input_ids = []
         self.target_ids = []
 
         allowed_special = {'<|endoftext|>'}
         tokens = tokenizer.encode(text, allowed_special=allowed_special)
 
-        for i in range(0, len(tokens) - max_length, stride):
+        for i in tqdm(range(0, len(tokens) - max_length, stride), desc=f"Criando amostras de {set}"):
             self.input_ids.append(torch.tensor(tokens[i: i + max_length]))
             self.target_ids.append(torch.tensor(tokens[i+1: i+max_length + 1]))
 
@@ -21,13 +23,14 @@ class Dataset_GPT(Dataset):
         return len(self.input_ids)
     
 
-def create_dataset(text, stride, max_length, shuffle, drop_last, tokenizer, num_workers, batch_size):
+def create_dataset(text, stride, max_length, shuffle, drop_last, tokenizer, num_workers, batch_size, set):
 
     dataset = Dataset_GPT(
         text=text,
         tokenizer=tokenizer,
         stride=stride,
-        max_length=max_length
+        max_length=max_length,
+        set=set
     )
 
     return DataLoader(
@@ -38,8 +41,17 @@ def create_dataset(text, stride, max_length, shuffle, drop_last, tokenizer, num_
         num_workers=num_workers
     )
 
+def load_file(file_path):
+    with open(file_path, 'r') as file:
+        content = file.read()
+    return content
 
-def get_loaders(train_data, test_data, val_data, tokenizer, max_length = 256, batch_sz = 10):
+
+def get_loaders(data_path, tokenizer, max_length = 256, batch_sz = 10):
+    train_data = load_file(os.path.join(data_path, "train.txt"))
+    test_data = load_file(os.path.join(data_path, "test.txt"))
+    val_data = load_file(os.path.join(data_path, "val.txt"))
+    
     train_loader = create_dataset(
         text=train_data,
         max_length=max_length,
@@ -48,7 +60,8 @@ def get_loaders(train_data, test_data, val_data, tokenizer, max_length = 256, ba
         num_workers=4,
         tokenizer=tokenizer,
         drop_last=True,
-        shuffle=True
+        shuffle=True,
+        set="TREINAMENTO"
     )
 
     test_loader = create_dataset(
@@ -59,7 +72,8 @@ def get_loaders(train_data, test_data, val_data, tokenizer, max_length = 256, ba
         num_workers=4,
         tokenizer=tokenizer,
         drop_last=True,
-        shuffle=True
+        shuffle=True,
+        set="TESTE"
     )
 
     val_loader = create_dataset(
@@ -70,7 +84,8 @@ def get_loaders(train_data, test_data, val_data, tokenizer, max_length = 256, ba
         num_workers=4,
         tokenizer=tokenizer,
         drop_last=True,
-        shuffle=True
+        shuffle=True,
+        set="VALIDAÇÃO"
     )
     
     return train_loader, test_loader, val_loader
