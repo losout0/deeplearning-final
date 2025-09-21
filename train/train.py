@@ -1,8 +1,8 @@
 import torch, time
 import matplotlib.pyplot as plt
-from .tokenizer import text_to_token_ids, token_ids_to_text
-from .generate import generate_text
-from .tokenizer import tokenizer
+from ..src.utils.tokenizer import text_to_token_ids, token_ids_to_text
+from ..src.utils.generate import generate_text
+from ..src.utils.tokenizer import tokenizer
 from matplotlib.ticker import MaxNLocator
 
 

@@ -1,9 +1,9 @@
 import torch, time
-from .tokenizer import tokenizer
-from .model import GPT2ModelGQA
+from ..src.utils.tokenizer import tokenizer
+from ..src.model.model import GPT2ModelGQA
 from .train import train_model
-from .loaders import get_loaders
-from .data import get_data
+from ..src.utils.loaders import get_loaders
+from ..src.utils.data import get_data
 from .train import calc_loss_batch_by_cross_entropy
 
 
