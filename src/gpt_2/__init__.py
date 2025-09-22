@@ -1,1 +1,1 @@
-from .model import GPT2ModelGQA
+from .model import GPT2ModelGQA, GPT2ModelMHA
