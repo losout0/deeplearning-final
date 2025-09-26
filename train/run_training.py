@@ -13,7 +13,7 @@ if str(project_root) not in sys.path:
 from src import text_to_token_ids, token_ids_to_text, tokenizer
 from src import generate_text
 from src import get_loaders
-from src import GPT2ModelGQA 
+from src import GPT2ModelMHA 
 
 # --- Configuração do Treinamento ---
 CONFIG = {
@@ -167,7 +167,7 @@ if __name__ == "__main__":
     )
     
     print("Inicializando modelo...")
-    model = GPT2ModelGQA(CONFIG, device=DEVICE).to(device=DEVICE)
+    model = GPT2ModelMHA(CONFIG, device=DEVICE).to(device=DEVICE)
     optimizer = torch.optim.AdamW(
         model.parameters(), lr=CONFIG["learning_rate"], weight_decay=CONFIG["weight_decay"]
     )
