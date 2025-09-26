@@ -79,10 +79,6 @@ def calc_loss_loader(model, data_loader, device, num_batches):
 
 
 def evaluate_test_model_with_metrics(model, test_loader, device, log_dir="logs"):
-    """
-    Avalia o modelo em test_loader, calcula loss, perplexidade e métricas F1/Precision/Recall por batch,
-    e grava cada batch em CSV dentro do diretório log_dir.
-    """
     model.eval()
     total_loss = 0.0
     n_batches = 0
@@ -90,14 +86,11 @@ def evaluate_test_model_with_metrics(model, test_loader, device, log_dir="logs")
     all_preds = []
     all_labels = []
 
-    # Cria diretório de logs se não existir
     os.makedirs(log_dir, exist_ok=True)
 
-    # Nome do CSV com timestamp
     timestamp_file = time.strftime("%Y%m%d_%H%M%S", time.gmtime())
     log_file_path = os.path.join(log_dir, f"test_metrics_{timestamp_file}.csv")
 
-    # Cria arquivo com cabeçalho
     with open(log_file_path, "w", newline="", encoding='utf-8') as f:
         writer = csv.writer(f)
         writer.writerow(["batch_idx", "loss", "perplexity",
@@ -107,23 +100,18 @@ def evaluate_test_model_with_metrics(model, test_loader, device, log_dir="logs")
         for batch_idx, (x, y) in enumerate(test_loader, 1):
             x, y = x.to(device), y.to(device)
 
-            # Calcula loss
             loss = calc_loss_batch(model, x, y, device)
             total_loss += loss.item()
             n_batches += 1
 
-            # Predições
             logits = model(x)
             preds = torch.argmax(logits, dim=-1)
 
-            # Flatten para batches ou sequências
-            flat_preds = preds.flatten().cpu().numpy()
             flat_labels = y.flatten().cpu().numpy()
 
             all_preds.extend(flat_preds)
             all_labels.extend(flat_labels)
 
-            # Métricas por batch (evita warnings)
             f1 = f1_score(flat_labels, flat_preds,
                           average='weighted', zero_division=0)
             precision = precision_score(
@@ -131,10 +119,8 @@ def evaluate_test_model_with_metrics(model, test_loader, device, log_dir="logs")
             recall = recall_score(flat_labels, flat_preds,
                                   average='weighted', zero_division=0)
 
-            # Perplexidade
             perplexity = float(torch.exp(loss))
 
-            # Escreve no CSV por batch
             with open(log_file_path, "a", newline="", encoding='utf-8') as f:
                 writer = csv.writer(f)
                 writer.writerow([batch_idx, f"{loss.item():.4f}", f"{perplexity:.2f}",
@@ -144,11 +130,9 @@ def evaluate_test_model_with_metrics(model, test_loader, device, log_dir="logs")
             print(
                 f"Batch {batch_idx}/{len(test_loader)} concluída | Loss: {loss.item():.4f} | Perplexity: {perplexity:.2f} | F1: {f1:.4f}")
 
-    # Loss médio e perplexidade total
     avg_loss = total_loss / n_batches
     perplexity_total = float(torch.exp(torch.tensor(avg_loss)))
 
-    # Métricas globais no dataset inteiro
     f1_total = f1_score(all_labels, all_preds,
                         average='weighted', zero_division=0)
     precision_total = precision_score(
@@ -163,6 +147,7 @@ def evaluate_test_model_with_metrics(model, test_loader, device, log_dir="logs")
 
     return avg_loss, perplexity_total, metrics_total, log_file_path
 
+
 def generate_and_print_sample(model, tokenizer, device, start_context):
     model.eval()
     context_size = model.pos_embeddings.weight.shape[0]
@@ -175,20 +160,13 @@ def generate_and_print_sample(model, tokenizer, device, start_context):
     model.train()
 
 # --- Função Principal de Treinamento ---
-
-
 def test_model_and_log(model, test_loader, config, device, tokenizer, start_context=None):
-    """
-    Testa o modelo, calcula loss, perplexidade e métricas F1/Precision/Recall,
-    e salva no CSV imediatamente.
-    """
     model.eval()
 
     log_file_path = config["test_log_file"]
     os.makedirs(os.path.dirname(log_file_path),
                 exist_ok=True) if os.path.dirname(log_file_path) else None
 
-    # Cria cabeçalho se não existir
     if not os.path.exists(log_file_path):
         with open(log_file_path, "w", newline="", encoding='utf-8') as f:
             writer = csv.writer(f)
@@ -197,7 +175,6 @@ def test_model_and_log(model, test_loader, config, device, tokenizer, start_cont
 
     start_time = time.time()
 
-    # Avalia o modelo e calcula métricas
     avg_loss, perplexity, metrics = evaluate_test_model_with_metrics(
         model, test_loader, device)
     duration = time.time() - start_time
@@ -205,7 +182,6 @@ def test_model_and_log(model, test_loader, config, device, tokenizer, start_cont
     timestamp = time.strftime("%Y-%m-%d %H:%M:%S", time.gmtime())
     model_name = type(model).__name__
 
-    # Escreve no CSV
     with open(log_file_path, "a", newline="", encoding='utf-8') as f:
         writer = csv.writer(f)
         writer.writerow([
@@ -218,19 +194,16 @@ def test_model_and_log(model, test_loader, config, device, tokenizer, start_cont
             f"{metrics['Recall']:.4f}",
             f"{duration:.2f}"
         ])
-        f.flush()  # garante que os dados sejam gravados imediatamente
+        f.flush()
 
-    # Log no console
     print(f"[{model_name}] Test Loss: {avg_loss:.4f} | Perplexity: {perplexity:.2f} | "
           f"F1: {metrics['F1']:.4f} | Precision: {metrics['Precision']:.4f} | Recall: {metrics['Recall']:.4f} | "
           f"Duration: {duration:.2f}s")
 
-    # Geração de amostra, se start_context fornecido
     if start_context is not None:
         generate_and_print_sample(model, tokenizer, device, start_context)
 
     return avg_loss, perplexity, metrics, duration
-
 
 # --- Bloco de Execução Principal ---
 if __name__ == "__main__":
@@ -265,8 +238,12 @@ if __name__ == "__main__":
         raise FileNotFoundError(f"Arquivo " +
                                 CONFIG["best_model_paths"]["mha"] + " não encontrado. Certifique-se de ter baixado o modelo.")
     
+    print("GQA")
+    loss_gqa, ppl_gqa, metrics_gqa, time_gqa = test_model_and_log(
+        model_gqa, test_loader, CONFIG, DEVICE, tokenizer, CONFIG["start_context"])
+
     print("MHA")
-    loss_mha, ppl_mha, time_mha = test_model_and_log(
+    loss_mha, ppl_mha, metrics_mha, time_mha = test_model_and_log(
         model_mha, test_loader, CONFIG, DEVICE, tokenizer, CONFIG["start_context"])
     
     print("Fim do script.")
