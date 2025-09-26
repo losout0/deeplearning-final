@@ -2,6 +2,7 @@ from src import GPT2ModelGQA, GPT2ModelMHA
 from src import get_loaders
 from src import generate_text
 from src import text_to_token_ids, token_ids_to_text, tokenizer
+from src import create_database, aggregate_batches, plot_graph, comparative_table, confusion_matrix
 import torch
 import time
 import csv
@@ -90,14 +91,21 @@ def evaluate_test_model_with_metrics(model, test_loader, device, log_dir="logs")
 
     timestamp_file = time.strftime("%Y%m%d_%H%M%S", time.gmtime())
     log_file_path = os.path.join(log_dir, f"test_metrics_{timestamp_file}.csv")
+    confusion_file_path = os.path.join(
+        log_dir, f"predictions_{timestamp_file}.csv")
 
     with open(log_file_path, "w", newline="", encoding='utf-8') as f:
         writer = csv.writer(f)
-        writer.writerow(["batch_idx", "loss", "perplexity",
-                        "F1", "Precision", "Recall"])
+        writer.writerow(["batch_idx", "loss", "perplexity", "F1",
+                        "Precision", "Recall", "duration_s", "num_tokens", "memory_MB"])
+
+    with open(confusion_file_path, "w", newline="", encoding='utf-8') as f:
+        writer = csv.writer(f)
+        writer.writerow(["y_true", "y_pred", "batch_idx"])
 
     with torch.no_grad():
         for batch_idx, (x, y) in enumerate(test_loader, 1):
+            start_time = time.time()
             x, y = x.to(device), y.to(device)
 
             loss = calc_loss_batch(model, x, y, device)
@@ -108,9 +116,10 @@ def evaluate_test_model_with_metrics(model, test_loader, device, log_dir="logs")
             preds = torch.argmax(logits, dim=-1)
 
             flat_labels = y.flatten().cpu().numpy()
+            flat_preds = preds.flatten().cpu().numpy()
 
-            all_preds.extend(flat_preds)
             all_labels.extend(flat_labels)
+            all_preds.extend(flat_preds)
 
             f1 = f1_score(flat_labels, flat_preds,
                           average='weighted', zero_division=0)
@@ -120,19 +129,26 @@ def evaluate_test_model_with_metrics(model, test_loader, device, log_dir="logs")
                                   average='weighted', zero_division=0)
 
             perplexity = float(torch.exp(loss))
+            duration_s = time.time() - start_time
+            num_tokens = x.numel()
+            mem_mb = torch.cuda.memory_allocated(device) / (1024 ** 2)
 
+            # Salvar métricas por batch
             with open(log_file_path, "a", newline="", encoding='utf-8') as f:
                 writer = csv.writer(f)
                 writer.writerow([batch_idx, f"{loss.item():.4f}", f"{perplexity:.2f}",
-                                f"{f1:.4f}", f"{precision:.4f}", f"{recall:.4f}"])
-                f.flush()
+                                 f"{f1:.4f}", f"{precision:.4f}", f"{recall:.4f}",
+                                 f"{duration_s:.2f}", num_tokens, f"{mem_mb:.2f}"])
 
-            print(
-                f"Batch {batch_idx}/{len(test_loader)} concluída | Loss: {loss.item():.4f} | Perplexity: {perplexity:.2f} | F1: {f1:.4f}")
+            with open(confusion_file_path, "a", newline="", encoding='utf-8') as f:
+                writer = csv.writer(f)
+                for yt, yp in zip(flat_labels, flat_preds):
+                    writer.writerow([yt, yp, batch_idx])
+
+            print(f"Batch {batch_idx}/{len(test_loader)} | Loss: {loss.item():.4f} | Perplexity: {perplexity:.2f} | F1: {f1:.4f} | Duration: {duration_s:.2f}s")
 
     avg_loss = total_loss / n_batches
     perplexity_total = float(torch.exp(torch.tensor(avg_loss)))
-
     f1_total = f1_score(all_labels, all_preds,
                         average='weighted', zero_division=0)
     precision_total = precision_score(
@@ -145,7 +161,7 @@ def evaluate_test_model_with_metrics(model, test_loader, device, log_dir="logs")
     print(
         f"\nAvaliação completa | Avg Loss: {avg_loss:.4f} | Perplexity: {perplexity_total:.2f} | F1: {f1_total:.4f}")
 
-    return avg_loss, perplexity_total, metrics_total, log_file_path
+    return avg_loss, perplexity_total, metrics_total, log_file_path, confusion_file_path
 
 
 def generate_and_print_sample(model, tokenizer, device, start_context):
@@ -158,7 +174,8 @@ def generate_and_print_sample(model, tokenizer, device, start_context):
     decoded_text = token_ids_to_text(token_ids, tokenizer)
     print(f"Amostra Gerada: '{decoded_text.replace(os.linesep, ' ')}'")
     model.train()
-
+    
+    
 # --- Função Principal de Treinamento ---
 def test_model_and_log(model, test_loader, config, device, tokenizer, start_context=None):
     model.eval()
@@ -175,8 +192,9 @@ def test_model_and_log(model, test_loader, config, device, tokenizer, start_cont
 
     start_time = time.time()
 
-    avg_loss, perplexity, metrics = evaluate_test_model_with_metrics(
-        model, test_loader, device)
+    avg_loss, perplexity, metrics, _, _ = evaluate_test_model_with_metrics(
+        model, test_loader, device, log_dir="logs"
+    )
     duration = time.time() - start_time
 
     timestamp = time.strftime("%Y-%m-%d %H:%M:%S", time.gmtime())
@@ -205,6 +223,8 @@ def test_model_and_log(model, test_loader, config, device, tokenizer, start_cont
 
     return avg_loss, perplexity, metrics, duration
 
+
+
 # --- Bloco de Execução Principal ---
 if __name__ == "__main__":
 
@@ -222,21 +242,31 @@ if __name__ == "__main__":
     try:
         model_gqa.load_state_dict(torch.load(
             CONFIG["best_model_paths"]["gqa"], map_location=DEVICE))
-        print("Pesos do best_model " + CONFIG["best_model_paths"]["gqa"] + " carregados com sucesso!")
+        print("Pesos do best_model " +
+            CONFIG["best_model_paths"]["gqa"] + " carregados com sucesso!")
     except FileNotFoundError:
-        raise FileNotFoundError(
-            f"Arquivo " + CONFIG["best_model_paths"]["gqa"] + " não encontrado. Certifique-se de ter baixado o modelo.")
+        raise FileNotFoundError(f"Arquivo " + CONFIG["best_model_paths"]
+                                ["gqa"] + " não encontrado. Certifique-se de ter baixado o modelo.")
 
+    params = sum(p.numel() for p in model_gqa.parameters())
+    params_gpt2 = params - sum(p.numel() for p in model_gqa.out_head.parameters())
+    print(f"Número de parâmetros (sem head): {params_gpt2:,}")
+    
     model_mha = GPT2ModelMHA(CONFIG, device=DEVICE).to(device=DEVICE)
 
     try:
         model_mha.load_state_dict(torch.load(
             CONFIG["best_model_paths"]["mha"], map_location=DEVICE))
         print(f"Pesos do best_model " +
-              CONFIG["best_model_paths"]["mha"] + " carregados com sucesso!")
+            CONFIG["best_model_paths"]["mha"] + " carregados com sucesso!")
     except FileNotFoundError:
-        raise FileNotFoundError(f"Arquivo " +
-                                CONFIG["best_model_paths"]["mha"] + " não encontrado. Certifique-se de ter baixado o modelo.")
+        raise FileNotFoundError(f"Arquivo " + CONFIG["best_model_paths"]
+                                ["mha"] + " não encontrado. Certifique-se de ter baixado o modelo.")
+
+    params = sum(p.numel() for p in model_mha.parameters())
+    params_gpt2 = params - sum(p.numel() for p in model_gqa.out_head.parameters())
+    print(f"Número de parâmetros (sem head): {params_gpt2:,}")
+    
     
     print("GQA")
     loss_gqa, ppl_gqa, metrics_gqa, time_gqa = test_model_and_log(
@@ -245,5 +275,30 @@ if __name__ == "__main__":
     print("MHA")
     loss_mha, ppl_mha, metrics_mha, time_mha = test_model_and_log(
         model_mha, test_loader, CONFIG, DEVICE, tokenizer, CONFIG["start_context"])
+    
+    df = create_database(CONFIG)
+    df_mha = df[df["model"] == "MHA"]
+    df_gqa = df[df["model"] == "GQA"]
+    
+    agg_mha = aggregate_batches(df_mha, block_size=100)
+    agg_gqa = aggregate_batches(df_gqa, block_size=100)
+    plot_graph(agg_mha, agg_gqa, "loss")
+    
+    agg_mha = aggregate_batches(df_mha, block_size=1000)
+    agg_gqa = aggregate_batches(df_gqa, block_size=1000)
+    plot_graph(agg_mha, agg_gqa, "loss")
+    plot_graph(agg_mha, agg_gqa, "perplexity")
+    plot_graph(agg_mha, agg_gqa, "F1")
+    plot_graph(agg_mha, agg_gqa, "Precision")
+    plot_graph(agg_mha, agg_gqa, "Recall")
+    plot_graph(agg_mha, agg_gqa, "Precision")
+
+    print(comparative_table(df))
+    
+    gqa_conf_path = os.path.join(CONFIG["test_log_file"], "predictions_20250926_145034.csv")
+    confusion_matrix(gqa_conf_path, "GQA")
+    
+    mha_conf_path = os.path.join(CONFIG["test_log_file"], "predictions_20250926_145752.csv")
+    confusion_matrix(mha_conf_path, "MHA")
     
     print("Fim do script.")

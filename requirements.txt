@@ -11,3 +11,6 @@ tqdm
 
 #sklearning
 scikit-learn
+
+#pandas
+pandas
