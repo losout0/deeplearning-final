@@ -25,7 +25,7 @@ O treinamento está sendo realizado em um notebook do Kaggle, aproveitando os re
 1. Acesse o notebook no Kaggle
    - [GPT2 - MHA (Baseline)](https://www.kaggle.com/code/losout0/gpt-multihead)
    - [GPT2 - GQA](https://www.kaggle.com/code/losout0/gpt-gqa)
-   - [Comparação GQA e MHA](https://www.kaggle.com/code/andrefelipealmeida/fork-of-compara-o-gpt-gqa-e-multihead)
+   - [Comparação GQA e MHA](https://www.kaggle.com/code/andrefelipealmeida/compara-o-gpt-gqa-e-multihead)
 2. Execute as células na ordem para:
    - Baixar e limpar os dados
    - Inicializar o modelo
@@ -51,3 +51,4 @@ Os textos foram extraídos do [Projeto Gutenberg](https://www.gutenberg.org/) e 
 2. [Language Models are Unsupervised Multitask Learners](https://cdn.openai.com/better-language-models/language_models_are_unsupervised_multitask_learners.pdf)
 
 3. [Build a Large Language Model (From Scratch)](https://github.com/rasbt/LLMs-from-scratch)
+
