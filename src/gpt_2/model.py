@@ -348,6 +348,7 @@ class GPT2ModelMHA(torch.nn.Module):
         super().__init__()
         self.device = device
         self.exists_experts = True if config["num_experts"] > 0 else False
+        self.apply_rope = config["apply_rope"]
 
         self.embeddings = torch.nn.Embedding(
             num_embeddings=config["vocab_size"],
@@ -386,7 +387,7 @@ class GPT2ModelMHA(torch.nn.Module):
         _, context_length = x.shape
         input_emb = self.embeddings(x)
         
-        if not self.exists_experts:
+        if not self.apply_rope:
             pos_emb = self.pos_embeddings(torch.arange(context_length, device=self.device))
             input_emb = input_emb + pos_emb
         
