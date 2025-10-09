@@ -1,3 +1,8 @@
+<<<<<<< HEAD
+torch
+tiktoken
+matplotlib
+=======
 # PyTorch
 --index-url https://download.pytorch.org/whl/cu126
 torch
@@ -14,3 +19,4 @@ scikit-learn
 
 #pandas
 pandas
+>>>>>>> 243177747acf6ef523836ff552f3064c9d5d2d7f

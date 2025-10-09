@@ -1,6 +1,23 @@
 import torch
 
 
+class RoPE(torch.nn.Module):
+    def apply_rope(x, cos, sin):
+        batch_size, num_heads, seq_len, head_dim = x.shape
+        assert head_dim % 2 == 0
+
+        x1 = x[..., : head_dim // 2]
+        x2 = x[..., head_dim // 2:]
+
+        cos = cos[:seq_len, :].unsqueeze(0).unsqueeze(0)
+        sin = sin[:seq_len, :].unsqueeze(0).unsqueeze(0)
+
+        rotated = torch.cat((-x2, x1), dim=-1)
+        x_rotated = (x * cos) + (rotated * sin)
+
+        return x_rotated.to(dtype=x.dtype)
+
+
 class GroupedQueryAttention(torch.nn.Module):
     def __init__(self, dim_in, dim_out, context_length, num_heads, num_kv_groups, bias=False):
         super().__init__()
@@ -55,6 +72,7 @@ class GroupedQueryAttention(torch.nn.Module):
 
         return concat
 
+
 class MultiHeadAttention(torch.nn.Module):
     def __init__(self, dim_in, dim_out, context_length, num_heads, bias=False):
         super().__init__()
@@ -70,10 +88,8 @@ class MultiHeadAttention(torch.nn.Module):
         self.wv = torch.nn.Linear(dim_in, dim_out, bias=bias) 
         self.wo_proj = torch.nn.Linear(dim_out, dim_out, bias=bias)
 
-        self.register_buffer(
-            "mask",
-            torch.triu(torch.ones(context_length, context_length), diagonal=1)
-        )
+        self.register_buffer("mask", torch.triu(torch.ones(context_length, context_length), diagonal=1))
+
 
     def forward(self, x):
         batch, num_tokens, d_in = x.shape
@@ -104,6 +120,7 @@ class MultiHeadAttention(torch.nn.Module):
 
         return concat
 
+
 class LayerNorm(torch.nn.Module):
     def __init__(self, embedding_dim, epsilon = 1e-5):
         super().__init__()
@@ -127,6 +144,55 @@ class GELU(torch.nn.Module):
             torch.sqrt(torch.tensor(2.0 / torch.pi)) *
             (x + 0.044715 * torch.pow(x, 3))
         ))
+
+
+class MoEFeedForward(torch.nn.Module):
+    def __init__(self, num_experts, num_experts_per_token, emb_dim_moe, emb_dim, bias):
+        super().__init__()
+        self.num_experts_per_tok = num_experts_per_token
+        self.num_experts_per_tok = emb_dim_moe
+        self.num_experts = num_experts
+        self.emb_dim = emb_dim
+
+        self.gate = torch.nn.Linear(emb_dim, num_experts, bias=bias)
+        self.fc1 = torch.nn.ModuleList([torch.nn.Linear(emb_dim,emb_dim_moe,bias=bias) for _ in range(num_experts)])
+        self.fc2 = torch.nn.ModuleList([torch.nn.Linear(emb_dim,emb_dim_moe,bias=bias) for _ in range(num_experts)])
+        self.fc3 = torch.nn.ModuleList([torch.nn.Linear(emb_dim_moe,emb_dim,bias=bias) for _ in range(num_experts)])
+
+
+    def forward(self, x):
+        scores = self.gate(x)
+        topk_scores, topk_indices = torch.topk(scores, self.num_experts_per_tok, dim=-1)
+        topk_probs = torch.softmax(topk_scores, dim=-1)
+
+        batch, seq_len, _ = x.shape
+        x_flat = x.reshape(batch * seq_len, -1)
+        out_flat = torch.zeros(batch * seq_len, self.emb_dim, device=x.device, dtype=x.dtype)
+
+        topk_indices_flat = topk_indices.reshape(-1, self.num_experts_per_tok)
+        topk_probs_flat = topk_probs.reshape(-1, self.num_experts_per_tok)
+
+        unique_experts = torch.unique(topk_indices_flat)
+
+        for expert_id_tensor in unique_experts:
+            expert_id = int(expert_id_tensor.item())
+            mask = topk_indices_flat == expert_id
+            if not mask.any(): continue
+
+            token_mask = mask.any(dim=-1)
+            selected_idx = token_mask.nonzero(as_tuple=False).squeeze(-1)
+            if selected_idx.numel() == 0: continue
+
+            expert_input = x_flat.index_select(0, selected_idx)
+            hidden = torch.nn.functional.silu(self.fc1[expert_id](expert_input)) * self.fc2[expert_id](expert_input)
+            expert_out = self.fc3[expert_id](hidden)
+
+            mask_selected = mask[selected_idx]
+            slot_indices = mask_selected.int().argmax(dim=-1, keepdim=True)
+            selected_probs = torch.gather(topk_probs_flat.index_select(0, selected_idx), dim=-1, index=slot_indices).squeeze(-1)
+            out_flat.index_add_(0, selected_idx, expert_out * selected_probs.unsqueeze(-1))
+
+        return out_flat.reshape(batch, seq_len, self.emb_dim)
 
 
 class FeedForward(torch.nn.Module):
@@ -276,19 +342,23 @@ class GPT2ModelGQA(torch.nn.Module):
 
         return logits
     
+
 class GPT2ModelMHA(torch.nn.Module):
     def __init__(self, config, device):
         super().__init__()
         self.device = device
+        self.exists_experts = True if config["num_experts"] > 0 else False
 
         self.embeddings = torch.nn.Embedding(
             num_embeddings=config["vocab_size"],
             embedding_dim=config["embedding_dim"]
         )
-        self.pos_embeddings = torch.nn.Embedding(
-            num_embeddings=config["context_length"],
-            embedding_dim=config["embedding_dim"]
-        )
+        
+        if self.num_experts == 0:
+            self.pos_embeddings = torch.nn.Embedding(
+                num_embeddings=config["context_length"],
+                embedding_dim=config["embedding_dim"]
+            )
 
         self.transformer_blocks = torch.nn.Sequential(*[
             TransformerBlockMHA(
@@ -311,14 +381,15 @@ class GPT2ModelMHA(torch.nn.Module):
             bias=config["bias"]
         )
 
-    def forward(self, x):
-        batch_size, context_length = x.shape
-        tok_emb = self.embeddings(x)
-        pos_emb = self.pos_embeddings(
-            torch.arange(context_length, device=self.device)
-        )
-        input_emb = tok_emb + pos_emb
 
+    def forward(self, x):
+        _, context_length = x.shape
+        input_emb = self.embeddings(x)
+        
+        if not self.exists_experts:
+            pos_emb = self.pos_embeddings(torch.arange(context_length, device=self.device))
+            input_emb = input_emb + pos_emb
+        
         result_transformer_blocks = self.transformer_blocks(input_emb)
         norm = self.final_norm(result_transformer_blocks)
         logits = self.out_head(norm)
