@@ -1,10 +1,4 @@
-<<<<<<< HEAD:train/tokenizer.py
 import torch, tiktoken
-
-=======
-import torch
-import tiktoken
->>>>>>> 243177747acf6ef523836ff552f3064c9d5d2d7f:src/utils/tokenizer.py
 
 tokenizer = tiktoken.get_encoding("o200k_base")
 
