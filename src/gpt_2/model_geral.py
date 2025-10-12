@@ -108,7 +108,7 @@ class MoEFeedForward(torch.nn.Module):
     def __init__(self, num_experts, num_experts_per_token, emb_dim_moe, emb_dim, bias):
         super().__init__()
         self.num_experts_per_tok = num_experts_per_token
-        self.num_experts_per_tok = emb_dim_moe
+        self.emb_dim_moe = emb_dim_moe
         self.num_experts = num_experts
         self.emb_dim = emb_dim
 
@@ -227,12 +227,13 @@ class TransformerBlockGQA(torch.nn.Module):
         add2 = forward + residual_connetion_forward
         
         return add2
-    
+
 
 class Transformer(torch.nn.Module):
     def __init__(self, config, device):
         super().__init__()
         self.device = device
+        self.apply_rope = config["apply_rope"]
 
         self.embeddings = torch.nn.Embedding(
             num_embeddings=config["vocab_size"],
